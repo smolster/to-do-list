@@ -14,6 +14,7 @@
 		04CD407A2322B8C5005F7BB2 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 04CD40782322B8C5005F7BB2 /* LaunchScreen.storyboard */; };
 		04CD40852322B8C5005F7BB2 /* ToDoListTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04CD40842322B8C5005F7BB2 /* ToDoListTests.swift */; };
 		04CD40902322B96D005F7BB2 /* README.md in Resources */ = {isa = PBXBuildFile; fileRef = 04CD408F2322B96D005F7BB2 /* README.md */; };
+		04CD40922322BA5E005F7BB2 /* ToDoItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04CD40912322BA5E005F7BB2 /* ToDoItem.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -38,6 +39,7 @@
 		04CD40842322B8C5005F7BB2 /* ToDoListTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToDoListTests.swift; sourceTree = "<group>"; };
 		04CD40862322B8C5005F7BB2 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		04CD408F2322B96D005F7BB2 /* README.md */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = net.daringfireball.markdown; name = README.md; path = ../README.md; sourceTree = "<group>"; };
+		04CD40912322BA5E005F7BB2 /* ToDoItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToDoItem.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -80,6 +82,7 @@
 		04CD406B2322B8C4005F7BB2 /* ToDoList */ = {
 			isa = PBXGroup;
 			children = (
+				04CD40932322BA66005F7BB2 /* Model */,
 				04CD406C2322B8C4005F7BB2 /* AppDelegate.swift */,
 				04CD406E2322B8C4005F7BB2 /* ViewController.swift */,
 				04CD40762322B8C5005F7BB2 /* Assets.xcassets */,
@@ -97,6 +100,14 @@
 				04CD40862322B8C5005F7BB2 /* Info.plist */,
 			);
 			path = ToDoListTests;
+			sourceTree = "<group>";
+		};
+		04CD40932322BA66005F7BB2 /* Model */ = {
+			isa = PBXGroup;
+			children = (
+				04CD40912322BA5E005F7BB2 /* ToDoItem.swift */,
+			);
+			path = Model;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -203,6 +214,7 @@
 				04CD406F2322B8C4005F7BB2 /* ViewController.swift in Sources */,
 				04CD40752322B8C4005F7BB2 /* ToDoList.xcdatamodeld in Sources */,
 				04CD406D2322B8C4005F7BB2 /* AppDelegate.swift in Sources */,
+				04CD40922322BA5E005F7BB2 /* ToDoItem.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
