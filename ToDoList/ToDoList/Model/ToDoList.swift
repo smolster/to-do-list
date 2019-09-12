@@ -10,13 +10,14 @@ import Foundation
 
 struct ToDoList {
     var dateCreated: Date
+    var dateLastModified: Date
     var name: String
+    
+    /// In no particular order!
     var items: [ToDoItem]
 }
 
-extension ToDoListModel {
-    func toDoList() -> ToDoList {
-        // TODO: Get items from set.
-        return ToDoList(dateCreated: self.dateCreated, name: self.name, items: [])
-    }
+extension ToDoList: Identifiable {
+    typealias ID = Date
+    var id: Date { return dateCreated }
 }

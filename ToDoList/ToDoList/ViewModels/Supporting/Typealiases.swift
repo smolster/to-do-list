@@ -7,4 +7,3 @@
 //
 
 typealias OutputFunction<T> = ((T) -> Void)
-typealias UserAlertInfo = (title: String, message: String, okAction: (() -> Void)?)

@@ -9,10 +9,23 @@
 import Foundation
 import CoreData
 
-// TODO: How to handle database errors?
-// TODO: Documentation
-
+/// An implementation of our `Database` protocol that uses CoreData for storage.
 final class CoreDataDatabase: Database {
+    
+    /// Our `NSPersistentContainer` instance.
+    private let container: NSPersistentContainer
+    
+    var databaseChangeHandler: ((DatabaseChange) -> Void)?
+    
+    init() {
+        container = NSPersistentContainer(name: "ToDoList")
+        container.loadPersistentStores { storeDescription, error in
+            self.container.viewContext.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
+            if let error = error {
+                Logger.error("CoreData Error: \(error)")
+            }
+        }
+    }
     
     func getAllToDoLists() -> DatabaseResult<[ToDoList]> {
         return performOnDatabaseThread { _ in
@@ -26,24 +39,7 @@ final class CoreDataDatabase: Database {
                 return .success(lists.map { $0.toDoList() })
             } catch let error {
                 Logger.error("CoreData: Error fetching ToDoLists: \(error)")
-                return .failure(.placeholder)
-            }
-        }
-    }
-    
-    func getAllToDoItems() -> DatabaseResult<[ToDoItem]> {
-        return performOnDatabaseThread { saveChanges in
-            let fetchRequest = ToDoItemModel.createFetchRequest()
-            // Sort?
-            fetchRequest.sortDescriptors = []
-            
-            do {
-                let items = try container.viewContext.fetch(fetchRequest)
-                Logger.info("CoreData: Fetched \(items.count) ToDoItems.")
-                return .success(items.map { $0.toDoItem() })
-            } catch let error {
-                Logger.error("CoreData: Error fetching ToDoItems: \(error)")
-                return .failure(.placeholder)
+                return .failure(.uncategorized(error))
             }
         }
     }
@@ -52,159 +48,169 @@ final class CoreDataDatabase: Database {
         return performOnDatabaseThread { saveChanges in
             let list = ToDoListModel(context: self.container.viewContext)
             list.name = name
-            list.dateCreated = Date()
+            let now = Date()
+            list.dateCreated = now
+            list.dateLastModified = now
             
-            return saveChanges()
-                .flatMap { return .success(list.toDoList()) }
+            let toDoList = list.toDoList()
+            return saveChanges([.listCreated(toDoList)])
+                .flatMap { return .success(toDoList) }
         }
     }
     
-    func createNewItem(inListWithName name: String, text: String, dateCompleted: Date?) -> DatabaseResult<ToDoItem> {
+    func createNewItem(inListWithID id: ToDoList.ID, text: String, dateCompleted: Date?) -> DatabaseResult<ToDoItem> {
         return performOnDatabaseThread { saveChanges in
             // First, need to find list with provided name.
             let listFetchRequest = ToDoListModel.createFetchRequest()
-            listFetchRequest.predicate = NSPredicate(format: "name == %@", name)
+            listFetchRequest.predicate = NSPredicate(format: "dateCreated == %@", id as NSDate)
             do {
                 // Data model is marked unique for `name` property, so just try to grab first.
                 guard let list = try self.container.viewContext.fetch(listFetchRequest).first else {
-                    fatalError("CoreData Programmer Error: Could not create new item in list with name '\(name)', no list found.")
+                    fatalError("CoreData Programmer Error: Could not create new item in list with dateCreated '\(id)', no list found.")
                 }
                 
                 let item = ToDoItemModel(context: container.viewContext)
                 item.list = list
-                item.dateCreated = Date()
                 item.text = text
                 item.dateCompleted = dateCompleted
                 
-                return saveChanges()
-                    .flatMap { return .success(item.toDoItem())}
+                let now = Date()
+                item.dateCreated = now
+                item.dateLastModified = now
+                list.dateLastModified = now
+                
+                list.addToItems(item)
+                
+                let toDoItem = item.toDoItem()
+                return saveChanges([.itemCreated(toDoItem)])
+                    .flatMap { return .success(toDoItem)}
             } catch let error {
-                Logger.error("CoreData: Couldn't create new item \(name). Error Message: \(error)")
-                return .failure(.placeholder)
+                Logger.error("CoreData: Couldn't create new item \(text). Error Message: \(error)")
+                return .failure(.uncategorized(error))
             }
         }
     }
     
-    func updateListName(oldName: String, newName: String) -> DatabaseResult<ToDoList> {
+    func updateList(withID id: ToDoList.ID, newName: String, dateLastModified: Date) -> DatabaseResult<ToDoList> {
         return performOnDatabaseThread { saveChanges in
-            
-            return loadModels(forListsWithNames: [oldName])
+            return loadModels(forListsWithIDs: [id])
                 .flatMap { models in
-                    
                     guard let model = models.first else {
-                        Logger.error("CoreData Programmer Error: Found no ToDoListModel with name \(oldName)")
-                        fatalError()
+                        return .failure(.noListFound(withID: id))
                     }
                     model.name = newName
+                    model.dateLastModified = dateLastModified
                     
-                    return saveChanges()
-                        .flatMap { return .success(model.toDoList()) }
+                    let list = model.toDoList()
+                    return saveChanges([.listUpdated(list)])
+                        .flatMap { return .success(list) }
                 }
         }
     }
     
-    func updateItem(havingDateCreated dateCreated: Date, newText: String, dateCompleted: Date?) -> DatabaseResult<ToDoItem> {
+    func updateItem(withID id: ToDoItem.ID, newText: String, dateLastModified: Date, dateCompleted: Date?) -> DatabaseResult<ToDoItem> {
         return performOnDatabaseThread { saveChanges in
-            return loadModels(forItemsWithIds: [dateCreated])
+            return loadModels(forItemsWithIDs: [id])
                 .flatMap { itemModels in
                     guard let model = itemModels.first else {
-                        Logger.error("CoreData Programmer Error: Found no ToDoItemModel with dateCreated \(dateCreated)")
-                        fatalError()
+                        return .failure(.noItemFound(withID: id))
                     }
                     model.text = newText
                     model.dateCompleted = dateCompleted
                     
-                    return saveChanges()
-                        .flatMap { return .success(model.toDoItem()) }
+                    if model.dateLastModified != dateLastModified {
+                        model.dateLastModified = dateLastModified
+                        model.list.dateLastModified = dateLastModified
+                    }
+                    
+                    let item = model.toDoItem()
+                    return saveChanges([.itemUpdated(item)])
+                        .flatMap { return .success(item) }
                 }
         }
     }
     
-    func delete(items: ToDoItem...) -> DatabaseResult<Void> {
+    func deleteItems(withIDs ids: [ToDoItem.ID]) -> DatabaseResult<Void> {
         return performOnDatabaseThread { saveChanges in
-            return loadModels(forItemsWithIds: items.map { $0.dateCreated })
+            return loadModels(forItemsWithIDs: ids)
                 .flatMap { itemModels in
                     itemModels.forEach(container.viewContext.delete)
-                    return saveChanges()
+                    return saveChanges([.itemsDeleted(ids: itemModels.map { $0.dateCreated })])
                 }
         }
     }
     
-    func delete(lists: ToDoList...) -> DatabaseResult<Void> {
+    func deleteLists(withIDs ids: [ToDoList.ID]) -> DatabaseResult<Void> {
         return performOnDatabaseThread { saveChanges in
-            return loadModels(forListsWithNames: lists.map { $0.name })
+            return loadModels(forListsWithIDs: ids)
                 .flatMap { listModels in
+                    // First, delete all of the item Models.
+                    let itemModels = listModels.flatMap { $0.items.allObjects as! [ToDoItemModel] }
+                    itemModels.forEach(container.viewContext.delete)
                     listModels.forEach(container.viewContext.delete)
-                    return saveChanges()
+                    return saveChanges([
+                        .itemsDeleted(ids: itemModels.map { $0.dateCreated }),
+                        .listsDeleted(ids: listModels.map { $0.dateCreated })
+                    ])
                 }
         }
     }
-    
-    
-    private let container: NSPersistentContainer
-    private let accessQueue: DispatchQueue
-    
-    init() {
-        accessQueue = DispatchQueue(label: "database", qos: .userInitiated)
-        
-        container = NSPersistentContainer(name: "ToDoList")
-        container.loadPersistentStores { storeDescription, error in
-            self.container.viewContext.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
-            
-            if let error = error {
-                // TODO: How to handle this?
-                Logger.error("CoreData Error: \(error)")
-            }
-        }
-    }
-    
     
 }
 
 extension CoreDataDatabase {
     /**
-     Synchronously performs a provided `block` on the `CoreDataDatabase`'s private queue.
+     Synchronously performs a provided `block` on the `CoreDataDatabase`'s private queue. The provided `block` will be passed a closure parameter that can be used to save changes in the `viewContext`.
      
      - parameter block: The block to perform.
      - parameter saveFunction: A function that can be called to save any changes to the database. Returns `nil` in the case of a successful save. Otherwise, returns a `DatabaseError`.
+     - parameter changes: The changes to be saved.
      */
-    private func performOnDatabaseThread<T>(_ block: (_ saveFunction: () -> DatabaseResult<Void>) -> T) -> T {
-        return accessQueue.sync {
-            return block {
-                guard container.viewContext.hasChanges else {
+    private func performOnDatabaseThread<T>(_ block: (_ saveFunction: (_ changes: [DatabaseChange]) -> DatabaseResult<Void>) -> T) -> T {
+        var returnValue: T!
+        self.container.viewContext.performAndWait {
+            returnValue = block { changes in
+                guard self.container.viewContext.hasChanges else {
                     // Nothing to save, just return.
                     return .success(())
                 }
                 do {
-                    try container.viewContext.save()
+                    try self.container.viewContext.save()
                     Logger.info("CoreData: Successfully saved viewContext.")
+                    
+                    // Broadcast updates on a global queue.
+                    DispatchQueue.global().async {
+                        Logger.info("Database changes: \(changes)")
+                        changes.forEach { self.databaseChangeHandler?($0) }
+                    }
                     return .success(())
                 } catch let error {
                     Logger.error("CoreData: Error saving viewContext: \(error)")
-                    return .failure(.placeholder)
+                    return .failure(.uncategorized(error))
                 }
             }
         }
+        
+        return returnValue
     }
 }
 
 extension CoreDataDatabase {
     /**
-     Loads the database models associated with the provided item ids.
+     Loads the item models associated with the provided `ids`. Objects are returned in-order corresponding to the order of the provided array of ids.
      
-     - parameter items: The desired model object information.
-     
+     - parameter ids: The unique identifiers of the desired items.
+     - returns: A `DatabaseResult` over the models.
      */
-    private func loadModels(forItemsWithIds creationDates: [Date]) -> DatabaseResult<[ToDoItemModel]> {
+    private func loadModels(forItemsWithIDs ids: [ToDoItem.ID]) -> DatabaseResult<[ToDoItemModel]> {
         do {
             var itemModels: [ToDoItemModel] = []
-            for date in creationDates {
+            for id in ids {
                 let fetchRequest = ToDoItemModel.createFetchRequest()
-                fetchRequest.predicate = NSPredicate(format: "dateCreated == %@", date as NSDate)
+                fetchRequest.predicate = NSPredicate(format: "dateCreated == %@", id as NSDate)
                 
                 guard let model = try container.viewContext.fetch(fetchRequest).first else {
-                    Logger.error("CoreData Programmer Error: Found no ToDoItemModel with dateCreated \(date)")
-                    fatalError()
+                    return .failure(.noItemFound(withID: id))
                 }
                 
                 itemModels.append(model)
@@ -212,21 +218,26 @@ extension CoreDataDatabase {
             
             return .success(itemModels)
         } catch let error {
-            Logger.error("CoreData: Error loading ToDoItemModels -- \(error)")
-            return .failure(.placeholder)
+            Logger.error("CoreData: Error loading ToDoItemModels: \(error)")
+            return .failure(.uncategorized(error))
         }
     }
     
-    private func loadModels(forListsWithNames names: [String]) -> DatabaseResult<[ToDoListModel]> {
+    /**
+     Loads the list models associated with the provided `ids`. Objects are returned in-order corresdponding to the order of the provided array of ids.
+     
+     - parameter ids: The unique identifiers of the desired lists.
+     - returns: A `DatabaseResult` over the models.
+     */
+    private func loadModels(forListsWithIDs ids: [ToDoList.ID]) -> DatabaseResult<[ToDoListModel]> {
         do {
             var listModels: [ToDoListModel] = []
-            for name in names {
+            for id in ids {
                 let fetchRequest = ToDoListModel.createFetchRequest()
-                fetchRequest.predicate = NSPredicate(format: "name == %@", name)
+                fetchRequest.predicate = NSPredicate(format: "dateCreated == %@", id as NSDate)
                 
                 guard let model = try container.viewContext.fetch(fetchRequest).first else {
-                    Logger.error("CoreData Programmer Error: Found no ToDoListModel with name \(name)")
-                    fatalError()
+                    return .failure(.noListFound(withID: id))
                 }
                 
                 listModels.append(model)
@@ -234,9 +245,8 @@ extension CoreDataDatabase {
             
             return .success(listModels)
         } catch let error {
-            // TODO: Handle error.
-            Logger.error("CoreData: Error loading ToDoItemLists -- \(error)")
-            return .failure(.placeholder)
+            Logger.error("CoreData: Error loading ToDoItemLists: \(error)")
+            return .failure(.uncategorized(error))
         }
     }
 }

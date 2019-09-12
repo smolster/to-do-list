@@ -11,16 +11,16 @@ import Foundation
 struct ToDoItem {
     var text: String
     var dateCreated: Date
+    var dateLastModified: Date
     var dateCompleted: Date?
-    var listName: String
+    var listID: ToDoList.ID
 }
 
 extension ToDoItem {
     var isComplete: Bool { return dateCompleted != nil }
 }
 
-extension ToDoItemModel {
-    func toDoItem() -> ToDoItem {
-        return ToDoItem(text: self.text, dateCreated: self.dateCreated, dateCompleted: self.dateCompleted, listName: self.list.name)
-    }
+extension ToDoItem: Identifiable {
+    typealias ID = Date
+    var id: Date { return self.dateCreated }
 }
