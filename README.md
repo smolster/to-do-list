@@ -86,7 +86,7 @@ final class SampleViewController: UIViewController {
 ```
 Note that no decisioning happens in the view controller--it's only responsibility is to respond to outputs, and pass along inputs.
 
-## Architecture Benefits
+## Architecture Primary Benefits
 #### Testability
 While this project does not have unit tests (due to time constraints), the decoupling between the ViewModel and the View objects allow both to be tested independently. The clearly defined API contracts between a ViewModel and its view allow for thorough testing, and high code coverage.
 
