@@ -1,4 +1,4 @@
-# Swain's Branch Challenge
+# Swain's To-Do List app
 
 The app's architecture can be broken down into three primary components: Models, Views, and ViewModels. Descriptions below.
 
