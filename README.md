@@ -2,6 +2,8 @@
 
 The app's architecture can be broken down into three primary components: Models, Views, and ViewModels. Descriptions below.
 
+
+
 ### Models
 The app's models consist of the backing data/information around which logic is performed. Examples in this app: `Database`  and its implementation `CoreDataDatabase`
 
