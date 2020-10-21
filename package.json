@@ -1,0 +1,25 @@
+{
+  "name": "to-do-list",
+  "version": "1.0.0",
+  "description": "The app's architecture can be broken down into three primary components: Models, Views, and ViewModels. Descriptions below.",
+  "main": "script.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/smolster/to-do-list.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/smolster/to-do-list/issues"
+  },
+  "homepage": "https://github.com/smolster/to-do-list#readme",
+  "dependencies": {
+    "@octokit/auth-app": "^2.7.0",
+    "@octokit/rest": "^18.0.6",
+    "octokit-plugin-create-pull-request": "^3.9.0",
+    "semver": "^7.3.2"
+  }
+}
